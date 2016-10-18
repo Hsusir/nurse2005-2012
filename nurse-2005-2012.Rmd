@@ -1,0 +1,337 @@
+---
+title: "2005-2012各縣市護理人員視覺化資料"
+author: "許sir"
+---
+
+## [設定所需的函式庫(libraries)]！？
+```{}
+install.packages("dygraphs")
+install.packages("plotly")
+install.packages("rCharts")
+install.packages("DT")
+```
+
+```{r echo=FALSE,warning=FALSE,message=F}
+library(dplyr)
+library(dygraphs)
+library(ggplot2)
+library(ggmap)
+library(data.table)
+library(devtools)
+library(plotly)
+library(xtable)
+#library(rCharts)
+library(tidyr)
+library(DT)
+library(RColorBrewer)
+```
+
+
+
+## 進行資料分析前，總要先有資料吧！？ 
+```{}
+# 讀檔起手式
+temp <- read.csv("歷年護理人員資料.csv")  #請輸入正確的檔案路徑
+# 若讀入的是亂碼，試試以下
+temp <- read.csv("歷年護理人員資料.csv",fileEncoding = 'big5')  #如果你是mac
+# 或是
+temp <- read.csv("歷年護理人員資料.csv",fileEncoding = 'utf-8') #如果你是windows
+```
+
+
+```{r}
+# 設定我們檔案存放的路徑
+setwd("/media/hsusir/DATA/Rdata Practice/02DataEngineer/nurse-plotly") 
+temp <- read.csv("歷年護理人員資料表.csv",fileEncoding = 'utf-8') #如果你是windows/Linux
+```
+
+# 以為開始了嗎？
+
+- 進行分析前，我們必須去了解資料的型態與特性
+
+```{r echo=TRUE}
+str(temp)
+```
+
+## 身為資料分析師，一定要有的好習慣！
+
+- 暸解基本的個變數統計量值
+
+```{r echo=TRUE}
+summary(temp)
+```
+
+## 資料介紹
+
+```{r echo = FALSE,fig.height=3, warning=FALSE, fig.align='center', message=FALSE, results='asis'}
+temp %>% sample_n(7,replace = TRUE) %>% xtable() %>% print(type='html') 
+```
+
+## 欄位說明
+
+- 性別：M：男生，F：女生
+- 醫療層級：1：醫學中心，2：區域醫院，3：地區醫院，4：基層院所
+- 縣市：台灣22個縣市
+- 年齡：台灣護理人員的年齡
+- 年度：第幾年的資料
+- 人數：護理人員的人數
+- 敘述：
+    + 這個資料表由健保資料庫的歷年醫事人員基本資料檔轉換而得，並非常見的原始資料檔。
+
+
+### [PART 1]. 先用來 gglpot2 玩看看
+
+## Line chart 
+
+- `geom_line`
+
+- 首先來看看2008年各個年齡層的護理師人數吧！
+
+- 是不是發現護理師主要都集中在某個年齡層呢？？
+
+```{r echo = TRUE,fig.height=2, warning=FALSE, fig.align='center', message=FALSE}
+temp_age <- temp %>% 
+  filter(年度 == "2008") %>% #挑出年度為2008年
+  group_by(年齡) %>% #根據年齡分群
+  summarise(護理師_人數 = sum(人數)) #計算總人數 
+
+# 資料整理可以直接複製貼上
+thm <- function() theme(text=element_text(size = 15, family = "STHeiti")) # 控制字體與大小
+# STHeiti是只有Mac才有的字體, 用來解決Mac系統中文顯示錯誤的問題
+# Windows系統的使用者請忽略 `+ thm()` 指令
+## Line chart
+```   
+
+## Line chart 
+
+```{r echo = TRUE,warning=FALSE,fig.height=3.5,fig.align='center', message=FALSE}
+## 可以與第10頁做簡單的對照
+ggplot(temp_age,aes(x = 年齡, y = 護理師_人數))+geom_line()+thm()
+```
+
+## Line chart and Scatter plot 
+
+- 歷年的醫護人員是不是逐年的再增加呢？
+
+```{r echo = TRUE,fig.height=3, warning=FALSE, fig.align='center', message=FALSE}
+temp_year <- temp  %>% 
+  group_by(年度) %>% #根據年度分群
+  summarise(護理師_人數 = sum(人數)) #計算總人數
+# 資料整理可以直接複製貼上
+```
+
+## Line chart and Scatter plot
+
+```{r echo = TRUE,fig.height=3.3,warning=FALSE, fig.align='center', message=FALSE}
+ggplot(temp_year,aes(x = 年度 , y = 護理師_人數)) +
+  geom_line(size = 2) + geom_point(size = 5) + # 控制點與線的大小粗細
+  thm() + labs(titles = "各年度護理人員數", x = "年度", y = "護理師人數") # lab用來幫圖形的標題、x軸與y軸做命名
+```
+
+## [小練習]
+
+- 比較高雄市、台中市、台南市，中南部的直轄市，歷年的護理人員數是否有差異？
+- 寬資料轉長資料(Wide format to long format)
+
+
+```{r echo = TRUE,fig.height=2.5, warning=FALSE, fig.align='center', message=FALSE}
+temp_t <- read.csv("我是寬資料.csv",header=T)
+temp_long <- temp_t %>% melt(id='year') #id是將保留的欄位名稱
+colnames(temp_long) <- c('年度','地區','人數')
+```
+
+```{r echo = TRUE,fig.height=3, warning=FALSE, fig.align='center', message=FALSE}
+# gruop按照不同區域劃線
+ggplot(temp_long, aes(x = 年度, y = 人數 , group = 地區, color = 地區)) + 
+  geom_line() + 
+  geom_point() + thm() +
+  labs(titles="歷年台南市、高雄市、台中市護理師人數差異",x="年度",y="護理師人數") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) # 控制x軸字體傾斜程度
+```
+
+## [小挑戰]
+
+- 試著畫出歷年男性護理師的人數趨勢？
+
+```{r echo=TRUE,eval=FALSE}
+## 資料整理
+temp_t <- temp  %>% 
+          filter(性別=="M") %>% #挑出男性
+          group_by(年度) %>% #根據年度分群
+          summarise(護理師_人數 = sum(人數)) #計算總人數
+## 繪圖
+ggplot(temp_t,aes(x = 年度 , y = 護理師_人數)) +
+  geom_line(size = 0.5) + geom_point(size = 1)+ # 控制點與線的大小粗細
+  thm()+labs(titles = "各年度男性護理人員數" , x = "年度" , y = "護理師人數")
+```
+
+## Bar Chart 
+
+- 以2008年來說，不同的醫療層級，護理人員的分佈狀況如何呢？
+
+```{r echo = TRUE,fig.height=3, warning=FALSE, fig.align='center', message=FALSE}
+#資料整理
+temp_hosp <- temp %>% 
+  filter(年度 == "2008") %>% #選擇年度2008
+  group_by(年度,醫療層級) %>% #對年度與醫療層級分群
+  summarise(護理師_人數 = sum(人數)) 
+#畫圖
+ggplot(temp_hosp,aes(x = 醫療層級, y = 護理師_人數)) +
+  geom_bar(stat = 'identity') + thm()# stat='identity'以表格的值做為bar的高度
+```
+
+
+- 如何控制長條圖的排序呢？有兩種比較簡單的方式。
+- 手動修改levels
+
+```{r echo = TRUE}
+class(temp_hosp$醫療層級) #看看這個變數的屬性類型
+# 發現他是integer的屬性，所以我們要將其轉成factor來改變他的順序
+temp_hosp$醫療層級 <- factor(temp_hosp$醫療層級,levels = c("醫學中心","區域醫院","地區醫院","基層院所"))
+```
+
+- 利用`arrange`事先依照y軸對應的數值的大小來排序
+
+```{r echo = TRUE}
+# 我們也可以在一開始先對資料排序完在畫圖
+temp_hosp <- temp_hosp %>% arrange(護理師_人數) 
+# 此時在接上畫圖的code就會自動排序囉！
+```
+
+```{r echo = TRUE,fig.height=3, warning=FALSE, fig.align='center', message=FALSE, results='asis'}
+# 資料整理大挑戰～～～
+temp_MF <- temp %>% 
+           group_by(性別,醫療層級) %>% 
+           summarise(護理師人數 = sum(人數)) %>% 
+           mutate(百分比 = round(護理師人數/sum(護理師人數),2))
+```
+
+
+```{r echo = FALSE,eval=FALSE}
+temp_MF$醫療層級 = factor(temp_hosp$醫療層級,levels = c("醫學中心","區域醫院","地區醫院","基層院所"))
+```
+
+## 兩種類別.stack
+
+```{r echo = TRUE,fig.height=3.5, warning=FALSE,fig.align='center', message=FALSE}
+ggplot(temp_MF,aes(x = 性別, y = 百分比 , fill = 醫療層級)) + 
+  geom_bar(stat = 'identity', position = 'stack') + thm()
+```
+
+## 兩種類別.dodge
+
+```{r echo = TRUE,fig.height=3.5, warning=FALSE, fig.align='center', message=FALSE}
+ggplot(temp_MF,aes(x = 性別, y = 百分比 , fill = 醫療層級 )) + 
+  geom_bar(stat = 'identity' , position = 'dodge') + thm()
+```
+
+
+## 圖形思考？
+
+### stack與dodge之間的差異？
+
+```{r echo = FALSE}
+a = ggplot(temp_MF,aes(x = 性別 , y = 百分比 , fill = 醫療層級)) + 
+  geom_bar(stat = 'identity', position = 'stack') + thm() 
+b = ggplot(temp_MF,aes(x = 性別, y = 百分比 , fill = 醫療層級 )) + 
+  geom_bar(stat = 'identity' , position = 'dodge') + thm()
+
+#multiplot(a,b,cols = 1)
+```
+
+### [PART 2]. 傳說中的`Plotly`
+
+- Plotly是一個資料視覺化的R套件，以簡單的方式，讓資料能夠產生互動的效果。
+- 提供一個合作平台，使用者能夠將自己在R中繪製的圖存上屬於自己的Plotly平台上。
+- [Plotly官方網站](https://plot.ly/)
+- 結合了各式各樣的API，包裝`Python`、`R`、`Malab`、...等等
+
+>- 當然～ggplot2也能夠輕易地使用plotly轉換成互動式的圖表！！
+
+## 套件安裝
+
+- 直接從`CRAN`內下載就好囉！！
+
+```{}
+# Plotly is now on CRAN!
+install.packages("plotly")
+# install the latest development version (on GitHub) via devtools
+```
+
+- `或是`從`github`上下載，但前提是`先`安裝`devtools`
+
+```{}
+# install.packages("devtools")
+devtools::install_github("ropensci/plotly")
+```
+
+## BarDemo(step1)
+
+- 2012年各縣市的護理師人數呈現什麼趨勢呢？縣市之間差異很大嗎？
+
+- 資料整理
+
+```{r echo = TRUE}
+temp_plot <- temp %>%  
+  filter(年度 == "2012") %>% 
+  group_by(縣市) %>% 
+  summarise(total = sum(人數))
+```
+
+## BarDemo(step2) 
+
+- 先用ggplot2畫出
+
+```{r echo = TRUE,fig.width=10,fig.height=3,fig.align='center',eval=TRUE}
+ggplot(temp_plot,aes(x = 縣市, y = total,fill = 縣市))+
+  geom_bar(stat = 'identity')+
+  thm()+
+  labs(titles = "2012年各縣市護理師數", x = "縣市",y = "護理師人數")+coord_flip()
+```
+
+## BarDemo(step3)
+
+- 首先先將剛剛的圖存入一個物件
+
+```{r echo = TRUE,fig.width=13,fig.align='center',eval=TRUE}
+a <- ggplot(temp_plot,aes(x = 縣市, y = total ,fill = 縣市))+
+     geom_bar(stat = 'identity')+
+     thm()+
+     labs(titles = "2012年各縣市護理師數",x = "縣市", y = "護理師人數")+coord_flip()
+```
+
+## BarDemo(step4)
+
+```{r echo = TRUE,fig.width=9,fig.height=5,warning=FALSE, fig.align='center'}
+ggplotly(a)
+```
+
+## lineDemo(step1)
+
+- 2005年～2012年高雄市與台南市的護理人員人數是否有明顯的變化？
+
+
+```{r echo = TRUE,fig.width=10,fig.height=3,fig.align='center',eval=TRUE}
+## 
+temp_plot <- temp %>% 
+             filter(縣市 == "台南市"|縣市 == "高雄市") %>% 
+             group_by(年度,縣市) %>% 
+             summarise(護理人員數=sum(人數)) 
+```
+
+## lineDemo(step2)
+
+```{r echo = TRUE,fig.width=10,fig.height=3,fig.align='center',eval=TRUE}
+a <- ggplot(temp_plot,aes(x = 年度,y = 護理人員數,group = 縣市,color = 縣市))+
+    geom_line() +  
+    thm()+
+    labs(titles = "高雄市與台南市歷年護理師人數",x = "年度",y = "護理師人數")+
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))# 控制x軸字體傾斜程度
+a
+```
+
+## lineDemo(step3) 
+
+```{r echo = TRUE,fig.width=10,fig.height=4,fig.align='center',eval=TRUE}
+ggplotly(a)
+```
